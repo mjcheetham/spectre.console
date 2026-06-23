@@ -12,10 +12,10 @@ internal sealed class AnsiConsoleFacade : IAnsiConsole
     public IExclusivityMode ExclusivityMode { get; }
     public RenderPipeline Pipeline { get; }
 
-    public AnsiConsoleFacade(Profile profile, IExclusivityMode exclusivityMode)
+    public AnsiConsoleFacade(Profile profile, IExclusivityMode exclusivityMode, IAnsiConsoleInput? input = null)
     {
         Profile = profile ?? throw new ArgumentNullException(nameof(profile));
-        Input = new DefaultInput(Profile);
+        Input = input ?? new DefaultInput(Profile);
         ExclusivityMode = exclusivityMode ?? throw new ArgumentNullException(nameof(exclusivityMode));
         Pipeline = new RenderPipeline();
 

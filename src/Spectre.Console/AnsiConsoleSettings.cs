@@ -22,6 +22,15 @@ public sealed class AnsiConsoleSettings
     public IAnsiConsoleOutput? Out { get; set; }
 
     /// <summary>
+    /// Gets or sets the input source.
+    /// </summary>
+    /// <remarks>
+    /// When <see langword="null"/>, a default input bound to
+    /// <see cref="System.Console"/> is used.
+    /// </remarks>
+    public IAnsiConsoleInput? In { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether or not the
     /// terminal is interactive or not.
     /// </summary>

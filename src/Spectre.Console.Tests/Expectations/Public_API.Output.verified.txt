@@ -193,7 +193,10 @@
         public string? Label { get; set; }
         public Spectre.Console.Justify? LabelAlignment { get; set; }
         public double? MaxValue { get; set; }
+        public bool ShowLegend { get; set; }
+        public bool ShowSegmentValues { get; set; }
         public bool ShowValues { get; set; }
+        public bool UsePercentageScale { get; set; }
         public System.Func<double, System.Globalization.CultureInfo, string>? ValueFormatter { get; set; }
         public int? Width { get; set; }
         protected override Spectre.Console.Rendering.Measurement Measure(Spectre.Console.Rendering.RenderOptions options, int maxWidth) { }
@@ -207,13 +210,23 @@
         public static Spectre.Console.BarChart AddItems<T>(this Spectre.Console.BarChart chart, System.Collections.Generic.IEnumerable<T> items)
             where T : Spectre.Console.IBarChartItem { }
         public static Spectre.Console.BarChart AddItems<T>(this Spectre.Console.BarChart chart, System.Collections.Generic.IEnumerable<T> items, System.Func<T, Spectre.Console.BarChartItem> converter) { }
+        public static Spectre.Console.BarChart AddStackedItem(this Spectre.Console.BarChart chart, string label, params Spectre.Console.IBarChartItem[] segments) { }
+        public static Spectre.Console.BarChart AddStackedItem(this Spectre.Console.BarChart chart, string label, System.Collections.Generic.IEnumerable<Spectre.Console.IBarChartItem> segments) { }
         public static Spectre.Console.BarChart CenterLabel(this Spectre.Console.BarChart chart) { }
+        public static Spectre.Console.BarChart HideLegend(this Spectre.Console.BarChart chart) { }
+        public static Spectre.Console.BarChart HideSegmentValues(this Spectre.Console.BarChart chart) { }
         public static Spectre.Console.BarChart HideValues(this Spectre.Console.BarChart chart) { }
         public static Spectre.Console.BarChart Label(this Spectre.Console.BarChart chart, string? label) { }
         public static Spectre.Console.BarChart LeftAlignLabel(this Spectre.Console.BarChart chart) { }
         public static Spectre.Console.BarChart RightAlignLabel(this Spectre.Console.BarChart chart) { }
+        public static Spectre.Console.BarChart ShowLegend(this Spectre.Console.BarChart chart) { }
+        public static Spectre.Console.BarChart ShowLegend(this Spectre.Console.BarChart chart, bool show) { }
+        public static Spectre.Console.BarChart ShowSegmentValues(this Spectre.Console.BarChart chart) { }
+        public static Spectre.Console.BarChart ShowSegmentValues(this Spectre.Console.BarChart chart, bool show) { }
         public static Spectre.Console.BarChart ShowValues(this Spectre.Console.BarChart chart) { }
         public static Spectre.Console.BarChart ShowValues(this Spectre.Console.BarChart chart, bool show) { }
+        public static Spectre.Console.BarChart UsePercentageScale(this Spectre.Console.BarChart chart) { }
+        public static Spectre.Console.BarChart UsePercentageScale(this Spectre.Console.BarChart chart, bool usePercentageScale) { }
         public static Spectre.Console.BarChart UseValueFormatter(this Spectre.Console.BarChart chart, System.Func<double, string>? func) { }
         public static Spectre.Console.BarChart UseValueFormatter(this Spectre.Console.BarChart chart, System.Func<double, System.Globalization.CultureInfo, string>? func) { }
         public static Spectre.Console.BarChart Width(this Spectre.Console.BarChart chart, int? width) { }
@@ -221,9 +234,11 @@
     }
     public sealed class BarChartItem : Spectre.Console.IBarChartItem
     {
+        public BarChartItem(string label, System.Collections.Generic.IEnumerable<Spectre.Console.IBarChartItem> segments) { }
         public BarChartItem(string label, double value, Spectre.Console.Color? color = default) { }
         public Spectre.Console.Color? Color { get; }
         public string Label { get; }
+        public System.Collections.Generic.IReadOnlyList<Spectre.Console.IBarChartItem> Segments { get; }
         public double Value { get; }
     }
     public abstract class BoxBorder

@@ -3,6 +3,20 @@ namespace Spectre.Console;
 /// <summary>
 /// A renderable (horizontal) bar chart.
 /// </summary>
+/// <example>
+/// <code>
+/// var chart = new BarChart()
+///     .AddStackedItem("Q1",
+///         new BarChartItem("Hardware", 30, Color.Red),
+///         new BarChartItem("Software", 70, Color.Blue))
+///     .AddStackedItem("Q2",
+///         new BarChartItem("Hardware", 60, Color.Red),
+///         new BarChartItem("Software", 40, Color.Blue))
+///     .UsePercentageScale()
+///     .ShowSegmentValues()
+///     .ShowLegend();
+/// </code>
+/// </example>
 public sealed class BarChart : Renderable, IHasCulture
 {
     /// <summary>
@@ -32,6 +46,29 @@ public sealed class BarChart : Renderable, IHasCulture
     public bool ShowValues { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets a value indicating whether to show values inside stacked segments.
+    /// </summary>
+    /// <remarks>
+    /// Values are shown as percentages when <see cref="UsePercentageScale"/> is enabled.
+    /// Labels that do not fit inside their segment are omitted.
+    /// </remarks>
+    public bool ShowSegmentValues { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to show a legend for stacked segments.
+    /// </summary>
+    public bool ShowLegend { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to normalize each nonzero bar to 100%.
+    /// </summary>
+    /// <remarks>
+    /// Ignores <see cref="MaxValue"/>. Values next to bars remain the original totals.
+    /// Bars with a total of zero remain empty.
+    /// </remarks>
+    public bool UsePercentageScale { get; set; }
+
+    /// <summary>
     /// Gets or sets the culture that's used to format values.
     /// </summary>
     /// <remarks>Defaults to invariant culture.</remarks>
@@ -46,6 +83,9 @@ public sealed class BarChart : Renderable, IHasCulture
     /// <summary>
     /// Gets or sets the function used to format the values of the bar chart.
     /// </summary>
+    /// <remarks>
+    /// Formats totals and inline segment values, but not inline percentages.
+    /// </remarks>
     public Func<double, CultureInfo, string>? ValueFormatter { get; set; }
 
     /// <summary>
@@ -68,6 +108,13 @@ public sealed class BarChart : Renderable, IHasCulture
     {
         var width = Math.Min(Width ?? maxWidth, maxWidth);
         var maxValue = Math.Max(MaxValue ?? 0d, Data.Max(item => item.Value));
+        var culture = Culture ?? CultureInfo.InvariantCulture;
+        var stacked = UsePercentageScale || Data.OfType<BarChartItem>().Any(item => item.Segments.Count > 0);
+        var valueWidth = stacked && ShowValues
+            ? Data.Max(item => Cell.GetCellLength(ValueFormatter != null
+                ? ValueFormatter(Math.Max(0, item.Value), culture)
+                : Math.Max(0, item.Value).ToString(culture)))
+            : 0;
 
         var grid = new Grid();
         grid.Collapse();
@@ -82,9 +129,14 @@ public sealed class BarChart : Renderable, IHasCulture
 
         foreach (var item in Data)
         {
-            grid.AddRow(
-                new Markup(item.Label),
-                new ProgressBar()
+            IRenderable bar;
+            if (stacked)
+            {
+                bar = new BarChartBar(this, item, maxValue, valueWidth);
+            }
+            else
+            {
+                bar = new ProgressBar()
                 {
                     Value = item.Value,
                     MaxValue = maxValue,
@@ -96,7 +148,29 @@ public sealed class BarChart : Renderable, IHasCulture
                     ShowValue = ShowValues,
                     Culture = Culture,
                     ValueFormatter = ValueFormatter,
+                };
+            }
+
+            grid.AddRow(new Markup(item.Label), bar);
+        }
+
+        if (ShowLegend)
+        {
+            var items = Data.OfType<BarChartItem>()
+                .SelectMany(item => item.Segments)
+                .GroupBy(item => (item.Label, Color: item.Color ?? Color.Default))
+                .Select(group => group.First())
+                .Select(item => (IBreakdownChartItem)new BreakdownChartItem(item.Label, item.Value, item.Color ?? Color.Default))
+                .ToList();
+
+            if (items.Count > 0)
+            {
+                grid.AddEmptyRow();
+                grid.AddRow(Text.Empty, new BreakdownTags(items)
+                {
+                    ShowTagValues = false,
                 });
+            }
         }
 
         return ((IRenderable)grid).Render(options, width);
@@ -108,6 +182,33 @@ public sealed class BarChart : Renderable, IHasCulture
 /// </summary>
 public static class BarChartExtensions
 {
+    /// <summary>
+    /// Adds a stacked bar to the bar chart.
+    /// </summary>
+    /// <param name="chart">The bar chart.</param>
+    /// <param name="label">The bar label.</param>
+    /// <param name="segments">The segments, in display order.</param>
+    /// <returns>The same instance so that multiple calls can be chained.</returns>
+    public static BarChart AddStackedItem(this BarChart chart, string label, params IBarChartItem[] segments)
+    {
+        return AddStackedItem(chart, label, (IEnumerable<IBarChartItem>)segments);
+    }
+
+    /// <summary>
+    /// Adds a stacked bar to the bar chart.
+    /// </summary>
+    /// <param name="chart">The bar chart.</param>
+    /// <param name="label">The bar label.</param>
+    /// <param name="segments">The segments, in display order.</param>
+    /// <returns>The same instance so that multiple calls can be chained.</returns>
+    public static BarChart AddStackedItem(this BarChart chart, string label, IEnumerable<IBarChartItem> segments)
+    {
+        ArgumentNullException.ThrowIfNull(chart);
+
+        chart.Data.Add(new BarChartItem(label, segments));
+        return chart;
+    }
+
     /// <summary>
     /// Adds an item to the bar chart.
     /// </summary>
@@ -289,6 +390,98 @@ public static class BarChartExtensions
         ArgumentNullException.ThrowIfNull(chart);
 
         chart.ShowValues = show;
+        return chart;
+    }
+
+    /// <summary>
+    /// Shows values inside stacked segments.
+    /// </summary>
+    /// <param name="chart">The bar chart.</param>
+    /// <returns>The same instance so that multiple calls can be chained.</returns>
+    public static BarChart ShowSegmentValues(this BarChart chart)
+    {
+        return ShowSegmentValues(chart, true);
+    }
+
+    /// <summary>
+    /// Hides values inside stacked segments.
+    /// </summary>
+    /// <param name="chart">The bar chart.</param>
+    /// <returns>The same instance so that multiple calls can be chained.</returns>
+    public static BarChart HideSegmentValues(this BarChart chart)
+    {
+        return ShowSegmentValues(chart, false);
+    }
+
+    /// <summary>
+    /// Sets whether values are shown inside stacked segments.
+    /// </summary>
+    /// <param name="chart">The bar chart.</param>
+    /// <param name="show">Whether to show segment values.</param>
+    /// <returns>The same instance so that multiple calls can be chained.</returns>
+    public static BarChart ShowSegmentValues(this BarChart chart, bool show)
+    {
+        ArgumentNullException.ThrowIfNull(chart);
+
+        chart.ShowSegmentValues = show;
+        return chart;
+    }
+
+    /// <summary>
+    /// Shows the legend for stacked segments.
+    /// </summary>
+    /// <param name="chart">The bar chart.</param>
+    /// <returns>The same instance so that multiple calls can be chained.</returns>
+    public static BarChart ShowLegend(this BarChart chart)
+    {
+        return ShowLegend(chart, true);
+    }
+
+    /// <summary>
+    /// Hides the legend for stacked segments.
+    /// </summary>
+    /// <param name="chart">The bar chart.</param>
+    /// <returns>The same instance so that multiple calls can be chained.</returns>
+    public static BarChart HideLegend(this BarChart chart)
+    {
+        return ShowLegend(chart, false);
+    }
+
+    /// <summary>
+    /// Sets whether the legend for stacked segments is shown.
+    /// </summary>
+    /// <param name="chart">The bar chart.</param>
+    /// <param name="show">Whether to show the legend.</param>
+    /// <returns>The same instance so that multiple calls can be chained.</returns>
+    public static BarChart ShowLegend(this BarChart chart, bool show)
+    {
+        ArgumentNullException.ThrowIfNull(chart);
+
+        chart.ShowLegend = show;
+        return chart;
+    }
+
+    /// <summary>
+    /// Normalizes each nonzero bar to 100%.
+    /// </summary>
+    /// <param name="chart">The bar chart.</param>
+    /// <returns>The same instance so that multiple calls can be chained.</returns>
+    public static BarChart UsePercentageScale(this BarChart chart)
+    {
+        return UsePercentageScale(chart, true);
+    }
+
+    /// <summary>
+    /// Sets whether each nonzero bar is normalized to 100%.
+    /// </summary>
+    /// <param name="chart">The bar chart.</param>
+    /// <param name="usePercentageScale">Whether to normalize bars.</param>
+    /// <returns>The same instance so that multiple calls can be chained.</returns>
+    public static BarChart UsePercentageScale(this BarChart chart, bool usePercentageScale)
+    {
+        ArgumentNullException.ThrowIfNull(chart);
+
+        chart.UsePercentageScale = usePercentageScale;
         return chart;
     }
 
